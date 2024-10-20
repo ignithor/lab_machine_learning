@@ -1,4 +1,5 @@
 #Outlook,Temperature,Humidity,Windy,Play
+3,3,2,2,2
 overcast,hot,high,FALSE,yes
 overcast,cool,normal,TRUE,yes
 overcast,mild,high,TRUE,yes
