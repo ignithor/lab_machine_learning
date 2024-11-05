@@ -1,4 +1,4 @@
-Model, mpg, disp, hp, weight
+Model,mpg,disp,hp,weight
 Mazda_RX4, 21, 160, 110, 2.62
 Mazda_RX4Wag, 21, 160, 110, 2.875
 Datsun_710, 22.8, 108, 93, 2.32
