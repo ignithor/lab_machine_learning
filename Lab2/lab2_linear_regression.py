@@ -55,6 +55,12 @@ def main(pourcentage_subset = 0.1, n_subset = 5):
 
     for i in range(n_subset):  # Compare n_subset random subsets
         randomSubset = np.random.permutation(len(x_turkish))[:round(pourcentage_subset * len(x_turkish))]
+        
+        # If we want to train the dataset only with the beginning of the data
+        # randomSubset = np.random.permutation(int(len(x_turkish)*0.2))[:round(pourcentage_subset * len(x_turkish))]
+        # If we want to train the dataset only with the end of the data
+        # randomSubset = np.random.permutation(int(len(x_turkish)*0.2))[:round(pourcentage_subset * len(x_turkish))]+int(len(x_turkish)*0.8)
+
         x_subset = x_turkish[randomSubset]
         t_subset = t_turkish[randomSubset]
         
@@ -87,7 +93,7 @@ def main(pourcentage_subset = 0.1, n_subset = 5):
     L_err_train_lin_car = []
     L_err_test_lin_car = []
 
-    for i in range(n_subset):  # Compare five random subsets
+    for i in range(n_subset):
         randomSubset = np.random.permutation(len(x_car))[:round(pourcentage_subset * len(x_car))]
         x_subset = x_car[randomSubset]
         t_subset = t_car[randomSubset]
