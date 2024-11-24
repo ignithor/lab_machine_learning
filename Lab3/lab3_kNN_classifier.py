@@ -196,6 +196,7 @@ def main():
         k_values = [1, 2, 3, 5, 11, 15, 21, 31, 41, 51]
         
     check_input(train_X, test_X, min(k_values))
+    
     # Evaluate KNN on tasks
     results = evaluate_knn_for_tasks(k_values, train_X, train_y, test_X, test_y, classes)
     
@@ -219,7 +220,7 @@ def main():
     print("\nAccuracy Table:")
     print(results_table)
 
-    # Optionally: Save the table to a CSV file
+    # Save the table to a CSV file
     results_table.to_csv("accuracy_table.csv", index=False)
     
     return 0
