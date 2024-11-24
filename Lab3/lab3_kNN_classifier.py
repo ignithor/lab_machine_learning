@@ -1,12 +1,15 @@
 import numpy as np
 from tensorflow.keras.datasets import mnist
+from sklearn.datasets import load_wine
 import matplotlib.pyplot as plt
+
 
 def check_input(train_X, test_X, k):
     if not train_X.shape[1] == test_X.shape[1]:
         raise ValueError("Train and test data have different number of features")
     if k > train_X.shape[0] or k <= 0:
         raise ValueError("Invalid k value")
+
 
 def kNN_classifier(k, train_X, train_y, test_X, test_y=None):
     """
@@ -17,7 +20,7 @@ def kNN_classifier(k, train_X, train_y, test_X, test_y=None):
 
     for i in range(n_test):
         distances = np.linalg.norm(train_X - test_X[i], axis=1)
-        nearest_neighbors = np.argsort(distances)[:k]
+        nearest_neighbors = np.argsort(distances)[:k] # Get indices of k nearest neighbors
         neighbor_labels = train_y[nearest_neighbors]
         unique, counts = np.unique(neighbor_labels, return_counts=True)
         predicted_label = unique[np.argmax(counts)]
@@ -30,11 +33,40 @@ def kNN_classifier(k, train_X, train_y, test_X, test_y=None):
     
     return predictions, error_rate
 
-def one_vs_all_labels(y, target_class):
+
+def normalize_features(X):
     """
-    Transform labels into binary for one-vs-all classification.
+    Normalize features to the [0, 1] range using min-max scaling.
     """
-    return (y == target_class).astype(int)
+    min_vals = np.min(X, axis=0)
+    max_vals = np.max(X, axis=0)
+    return (X - min_vals) / (max_vals - min_vals)
+
+
+def evaluate_knn_for_tasks(k_values, train_X, train_y, test_X, test_y, classes):
+    """
+    Evaluate KNN for multiple k values and binary tasks (class vs. others).
+    """
+    results = {}
+    
+    for cls in classes:
+        binary_train_y = (train_y == cls).astype(int)
+        binary_test_y = (test_y == cls).astype(int)
+        results[cls] = {}
+        
+        for k in k_values:
+            predictions, error_rate = kNN_classifier(k, train_X, binary_train_y, test_X)
+            cm = compute_confusion_matrix(binary_test_y, predictions)
+            print(f"Confusion Matrix for class {cls} with k={k}:\n", cm)
+            metrics = compute_classification_metrics(cm)
+            
+            results[cls][k] = {
+                "confusion_matrix": cm,
+                "classification_metrics": metrics
+            }
+    
+    return results
+
 
 def compute_confusion_matrix(y_true, y_pred):
     """
@@ -46,52 +78,37 @@ def compute_confusion_matrix(y_true, y_pred):
     fn = np.sum((y_true == 1) & (y_pred == 0))  # False Negative
     return np.array([[tp, fn], [fp, tn]])
 
+
 def compute_classification_metrics(cm):
     """
-    Compute precision, recall, F1-score, and accuracy from confusion matrix.
+    Compute precision, recall and accuracy from confusion matrix.
     """
     tp, fn, fp, tn = cm[0, 0], cm[0, 1], cm[1, 0], cm[1, 1]
-    precision = tp / (tp + fp) if tp + fp > 0 else 0
-    recall = tp / (tp + fn) if tp + fn > 0 else 0
-    f1_score = (2 * precision * recall) / (precision + recall) if precision + recall > 0 else 0
+    precision = tp / (tp + fp)
+    recall = tp / (tp + fn)
     accuracy = (tp + tn) / (tp + tn + fp + fn)
-    return {"precision": precision, "recall": recall, "f1_score": f1_score, "accuracy": accuracy}
+    return {"precision": precision, "recall": recall, "accuracy": accuracy}
 
-def evaluate_knn_for_tasks(k_values, train_X, train_y, test_X, test_y, classes):
+
+def leave_one_out_cross_validation(k, X, y):
     """
-    Evaluate KNN for multiple k values and binary tasks (digit vs. others).
+    Perform Leave-One-Out Cross-Validation (LOOCV) for KNN.
     """
-    results = {}
-    
-    for digit in classes:
-        binary_train_y = one_vs_all_labels(train_y, digit)
-        binary_test_y = one_vs_all_labels(test_y, digit)
-        results[digit] = {}
+    n_samples = X.shape[0]
+    errors = 0
+
+    for i in range(n_samples):
+        train_X = np.delete(X, i, axis=0)
+        train_y = np.delete(y, i)
+        test_X = X[i].reshape(1, -1)
+        test_y = y[i]
         
-        for k in k_values:
-            predictions, _ = kNN_classifier(k, train_X, binary_train_y, test_X)
-            cm = compute_confusion_matrix(binary_test_y, predictions)
-            metrics = compute_classification_metrics(cm)
-            
-            results[digit][k] = {
-                "confusion_matrix": cm,
-                "classification_metrics": metrics
-            }
+        prediction, _ = kNN_classifier(k, train_X, train_y, test_X, np.array([test_y]))
+        if prediction[0] != test_y:
+            errors += 1
     
-    return results
+    return errors / n_samples
 
-def summarize_results(results):
-    """
-    Summarize results with average and standard deviation of accuracy across tasks.
-    """
-    summary = {}
-    for k in results[0].keys():
-        accuracies = [results[digit][k]["classification_metrics"]["accuracy"] for digit in results.keys()]
-        summary[k] = {
-            "mean_accuracy": np.mean(accuracies),
-            "std_accuracy": np.std(accuracies)
-        }
-    return summary
 
 def plot_results(summary, k_values):
     """
@@ -108,33 +125,86 @@ def plot_results(summary, k_values):
     plt.grid()
     plt.show()
 
-def main():
-    k_values = [1, 2, 3, 4, 5, 10, 15, 20, 30, 40, 50]
-    classes = list(range(10))  # Digits 0-9
-    
-    # Load MNIST data
-    (train_X, train_y), (test_X, test_y) = mnist.load_data()
-    train_X = train_X.reshape(train_X.shape[0], -1) / 255.0
-    test_X = test_X.reshape(test_X.shape[0], -1) / 255.0
 
-    # Optionally use a subset for faster computation
-    train_X = train_X[:2000]
-    train_y = train_y[:2000]
-    test_X = test_X[:500]
-    test_y = test_y[:500]
-    
+def summarize_results(results):
+    """
+    Summarize results with average and standard deviation of accuracy across tasks.
+    """
+    summary = {}
+    for k in results[0].keys():
+        accuracies = [results[digit][k]["classification_metrics"]["accuracy"] for digit in results.keys()]
+        summary[k] = {
+            "mean_accuracy": np.mean(accuracies),
+            "std_accuracy": np.std(accuracies)
+        }
+    return summary
+
+
+def main():
+    dataset_choice = int(input("Choose dataset mnist : 0 or wine : 1): "))
+    # Wine dataset
+    if dataset_choice:
+        wine = load_wine()
+        X, y = wine.data, wine.target
+        X = normalize_features(X)  # Normalize features to [0, 1]
+        
+        # Split into train and test sets (80/20 split)
+        split_idx = int(0.8 * X.shape[0])
+        
+        # Permutation for shuffling the dataset
+        permutation = np.random.permutation(len(y))
+        X = X[permutation]
+        y = y[permutation]
+        
+        train_X, test_X = X[:split_idx], X[split_idx:]
+        train_y, test_y = y[:split_idx], y[split_idx:]
+        classes = np.unique(y)
+        # avoid k= 3n to avoid ties
+        k_values = [1, 2, 4, 5, 10, 16, 20, 31, 40, 50]
+        # check_input(train_X, test_X, min(k_values))
+        # print("Running Leave-One-Out Cross-Validation (LOOCV)...")
+        # loocv_results = {}
+        # for k in k_values:
+        #     loocv_error = leave_one_out_cross_validation(k, train_X, train_y)
+        #     loocv_results[k] = 1 - loocv_error
+        #     print(f"k={k}: LOOCV Accuracy = {1 - loocv_error:.4f}")
+        # plt.plot(k_values, list(loocv_results.values()), marker='o', label="LOOCV Accuracy")
+        # plt.title("LOOCV Accuracy vs. k for Wine Dataset")
+        # plt.xlabel("k")
+        # plt.ylabel("Accuracy")
+        # plt.grid()
+        # plt.show()
+        
+    # MNIST dataset
+    else:
+        print("Loading MNIST dataset...")
+        (train_X, train_y), (test_X, test_y) = mnist.load_data()
+        train_X = train_X.reshape(train_X.shape[0], -1) / 255.0
+        test_X = test_X.reshape(test_X.shape[0], -1) / 255.0
+        
+        # Use a subset of MNIST for faster computation 80-20 split
+        train_X = train_X[:1200]
+        train_y = train_y[:1200]
+        test_X = test_X[:300]
+        test_y = test_y[:300]
+        classes = list(range(10)) # Digits 0-9
+        # avoid k = 10n to avoid ties
+        k_values = [1, 2, 3, 5, 11, 15, 21, 31, 41, 51]
+        
     check_input(train_X, test_X, min(k_values))
-    
     # Evaluate KNN on tasks
     results = evaluate_knn_for_tasks(k_values, train_X, train_y, test_X, test_y, classes)
     
-    # Summarize results
+    # Summarize and plot
     summary = summarize_results(results)
-    for k, stats in summary.items():
-        print(f"k={k}: Mean Accuracy={stats['mean_accuracy']:.3f}, Std. Deviation={stats['std_accuracy']:.3f}")
-    
-    # Plot results
     plot_results(summary, k_values)
+
+    for cls, metrics in results.items():
+        print(f"Results for class {cls}:")
+        for k, result in metrics.items():
+            acc = result["classification_metrics"]["accuracy"]
+            print(f"  k={k}: Accuracy={acc:.4f}")
+    
 
 if __name__ == "__main__":
     main()
