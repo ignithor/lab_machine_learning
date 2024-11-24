@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from tensorflow.keras.datasets import mnist
 from sklearn.datasets import load_wine
 import matplotlib.pyplot as plt
@@ -84,8 +85,8 @@ def compute_classification_metrics(cm):
     Compute precision, recall and accuracy from confusion matrix.
     """
     tp, fn, fp, tn = cm[0, 0], cm[0, 1], cm[1, 0], cm[1, 1]
-    precision = tp / (tp + fp)
-    recall = tp / (tp + fn)
+    precision = tp / (tp + fp) if tp + fp > 0 else 0
+    recall = tp / (tp + fn) if tp + fn > 0 else 0
     accuracy = (tp + tn) / (tp + tn + fp + fn)
     return {"precision": precision, "recall": recall, "accuracy": accuracy}
 
@@ -161,6 +162,9 @@ def main():
         classes = np.unique(y)
         # avoid k= 3n to avoid ties
         k_values = [1, 2, 4, 5, 10, 16, 20, 31, 40, 50]
+        
+        # If we want to run LOOCV
+        
         # check_input(train_X, test_X, min(k_values))
         # print("Running Leave-One-Out Cross-Validation (LOOCV)...")
         # loocv_results = {}
@@ -199,12 +203,26 @@ def main():
     summary = summarize_results(results)
     plot_results(summary, k_values)
 
-    for cls, metrics in results.items():
-        print(f"Results for class {cls}:")
-        for k, result in metrics.items():
-            acc = result["classification_metrics"]["accuracy"]
-            print(f"  k={k}: Accuracy={acc:.4f}")
-    
+    # Build a dictionary to hold table data
+    table_data = {"k": k_values}
 
+    for cls in classes:  # Add a column for each digit
+        table_data[cls] = [
+            results[cls][k]["classification_metrics"]["accuracy"]
+            for k in k_values
+        ]
+
+    # Create a DataFrame
+    results_table = pd.DataFrame(table_data)
+
+    # Print the table
+    print("\nAccuracy Table:")
+    print(results_table)
+
+    # Optionally: Save the table to a CSV file
+    results_table.to_csv("accuracy_table.csv", index=False)
+    
+    return 0
+    
 if __name__ == "__main__":
     main()
